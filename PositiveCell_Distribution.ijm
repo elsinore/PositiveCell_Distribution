@@ -5,7 +5,7 @@ rad = 0.01745329252;
 roiN = roiManager("count");
 run("32-bit");
 setAutoThreshold("Yen dark");
-run("Set Measurements...", "feret's redirect=None decimal=6");
+run("Set Measurements...", "centroid feret's redirect=None decimal=6");
 setTool("line");
 title = "Make indicator";
   msg = "Please draw a line from upper left corner\n to bottom right corner of the boxes on both side";
@@ -16,9 +16,9 @@ title = "Enter Number of Section";
 width = 512; height = 512;
     Dialog.addChoice("Section No.:", newArray(4, 5, 8, 10));
     Dialog.addString("Group1 Name:", "Compression");
-    Dialog.addNumber("Group1 Number:", roiN+1);
+    Dialog.addNumber("Group1 Number:", 2);
     Dialog.addString("Group1 Name:", "Tension");
-    Dialog.addNumber("Group1 Number:", roiN+2);
+    Dialog.addNumber("Group1 Number:", 4);
     Dialog.addNumber("Width of ROI:", 200);
     Dialog.addNumber("Hight of ROI:", 310);
     Dialog.show();
@@ -29,9 +29,12 @@ width = 512; height = 512;
 		G2N = Dialog.getNumber();
 		Wid = Dialog.getNumber();
 		Hig = Dialog.getNumber();
+	G1N_I = roiN;
+	G2N_I = roiN+1;
 	G1N = G1N - 1;
 	G2N = G2N - 1;
-	an0 = atan(Wid/Hig);
+	an0 = atan(Wid/Hig); //The angle between diagonal and hight
+	diagonal_Ha = sqrt(pow(Wid, 2) + pow(Hig, 2))/2; // half length of diagonal
 	increment = Wid/NuS;
 //basic measurment
 run("Clear Results");
@@ -39,22 +42,44 @@ roiManager("select", G1N);
 run("Measure");
 roiManager("select", G2N);
 run("Measure");
+roiManager("select", G1N_I);
+run("Measure");
+roiManager("select", G2N_I);
+run("Measure");
 //Basic parameter of Group 1
-angle_G1 = getResult("FeretAngle",0);
-angle_G1 = angle_G1*rad;
-an1_G1 = PI-angle_G1+an0;
-an2_G1 = angle_G1 - an0 - PI/2;
+if(abs(getResult("FeretAngle", 0)-getResult("FeretAngle", 2)) >= (PI - 2*an0)){
+	angle_G1 = getResult("FeretAngle",0);
+	angle_G1_1 = angle_G1*rad - an0;
+	angle_G1 = angle_G1*rad - (PI - 2*an0);
+	an1_G1 = PI-angle_G1+an0;
+	an2_G1 = angle_G1 - an0 - PI/2;
+} else {
+	angle_G1 = getResult("FeretAngle",0);
+	angle_G1 = angle_G1*rad;
+	an1_G1 = PI-angle_G1+an0;
+	an2_G1 = angle_G1 - an0 - PI/2;
+}
+
 //Basic parameter of Group 2
-angle_G2 = getResult("FeretAngle",1);
-angle_G2 = angle_G2*rad;
-an1_G2 = PI-angle_G2+an0;
-an2_G2 = angle_G2 - an0 - PI/2;
+if(abs(getResult("FeretAngle", 1)-getResult("FeretAngle", 3)) >= (PI - 2*an0)){
+	angle_G2 = getResult("FeretAngle",1);
+	angle_G2_1 = angle_G2*rad - an0;
+	angle_G2 = angle_G2*rad - (PI - 2*an0);
+	an1_G2 = PI-angle_G2+an0;
+	an2_G2 = angle_G2 - an0 - PI/2;
+} else {
+	angle_G2 = getResult("FeretAngle",1);
+	angle_G2 = angle_G2*rad;
+	an1_G2 = PI-angle_G2+an0;
+	an2_G2 = angle_G2 - an0 - PI/2;
+}
+
 //Group1 sections
 G1_Sec = newArray(NuS*4+4);
 for(i = 0; i < NuS; i++) {
 	if(i == 0) {
-		G1_Sec[0] = getResult("FeretX",0);
-		G1_Sec[1] = getResult("FeretY",0);
+		G1_Sec[0] = getResult("X", 0) + cos(angle_G1)*diagonal_Ha;
+		G1_Sec[1] = getResult("Y", 0) - sin(angle_G1)*diagonal_Ha;
 		G1_Sec[2] = sin(an2_G1) * Hig + G1_Sec[0];
 		G1_Sec[3] = cos(an2_G1) * Hig + G1_Sec[1];
 		G1_Sec[4] = G1_Sec[2] + sin(an1_G1) * increment;
@@ -87,8 +112,8 @@ for(i = 0; i < NuS; i++) {
 G2_Sec = newArray(NuS*4+4);
 for(i = 0; i < NuS; i++) {
 	if(i == 0) {
-		G2_Sec[0] = getResult("FeretX",1);
-		G2_Sec[1] = getResult("FeretY",1);
+		G2_Sec[0] = getResult("X", 1) + cos(angle_G2)*diagonal_Ha;
+		G2_Sec[1] = getResult("Y", 1) - sin(angle_G2)*diagonal_Ha;
 		G2_Sec[2] = sin(an2_G2) * Hig + G2_Sec[i*6];
 		G2_Sec[3] = cos(an2_G2) * Hig + G2_Sec[i*6+1];
 		G2_Sec[4] = G2_Sec[2] + sin(an1_G2) * increment;
@@ -117,10 +142,11 @@ for(i = 0; i < NuS; i++) {
 		roiManager("add");
 	}
 }
-roiManager("select", G1N);
+roiManager("select", roiN);
 roiManager("delete");
-roiManager("select", G1N);
+roiManager("select", roiN);
 roiManager("delete");
+//particle analyze
 cellAmount = newArray();
 for(i = 0; i < 2*NuS; i++) {
 	if(i < NuS) {
@@ -136,6 +162,7 @@ for(i = 0; i < 2*NuS; i++) {
 		cellAmount = Array.concat(cellAmount, nResults);
 	}
 }
+//result type in
 title = "Now do cell counter";
   msg = "When you finish cell conter, press OK";
   waitForUser(title, msg);
